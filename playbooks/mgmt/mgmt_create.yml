@@ -1,0 +1,41 @@
+---
+- name: Create a complete mgmt server
+  hosts: localhost
+  vars:
+    ansible_project_root_path: "{{ '/var/lib/awx/projects/_28__ansible_gev' if tower_job_id is defined else (inventory_file|dirname|dirname) }}"
+  tasks:
+    - debug:
+        msg: "Create a complete mgmt server"
+
+- name: Prepare prerequisites
+  import_playbook: mgmt_prepare.yml
+
+- name: Install docker-ce
+  import_playbook: docker_install.yml
+
+- name: Install ansible
+  import_playbook: ansible_install.yml
+
+- name: Build httpd docker image
+  import_playbook: httpd_mgmt_build_image.yml
+
+- name: Install httpd
+  import_playbook: httpd_mgmt_install.yml
+
+- name: Install gitlab
+  import_playbook: gitlab_install.yml
+
+- name: Start gitlab-runner
+  import_playbook: gitlab_runner_install.yml
+
+- name: Install minio
+  import_playbook: minio_install.yml
+
+- name: Install ansible awx
+  import_playbook: awx_install.yml
+
+# - name: Restore gitlab
+#   import_playbook: gitlab_restore_backup.yml
+
+# - name: Restore awx
+#   import_playbook: awx_restore_backup.yml

@@ -1,0 +1,6 @@
+- hosts: mgmt_gev
+  vars:
+    gitlab_runner_ci_url: 'https://git.example.com'
+    gitlab_runner_ci_token: 'thisismytoken'
+  roles:
+    - { role: adfinis-sygroup.gitlab_runner }

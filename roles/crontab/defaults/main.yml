@@ -1,0 +1,8 @@
+---
+# defaults file for crontab
+cron_at_special_time:
+  - name: logger_append_to_authpriv
+    state: present
+    special_time: daily
+    user: root
+    job: "/bin/logger -p authpriv.notice -t $(hostname -f) 'Test send log to Arcsight'"

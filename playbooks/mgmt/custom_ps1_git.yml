@@ -1,0 +1,39 @@
+- name: Modify ps1 for git
+  hosts: mgmt
+  become: yes
+  become_user: root
+  vars:
+    git_prompt: /etc/profile.d/git-prompt.sh
+    git_ps1: /etc/profile.d/git-ps1.sh
+
+  tasks:
+    - name: Download git-prompt.sh
+      get_url:
+        url: https://raw.github.com/git/git/master/contrib/completion/git-prompt.sh
+        dest: "{{ git_prompt }}"
+        mode: 0644
+
+    - name: Check if /etc/bash_completion.d/ exists
+      stat:
+        path: /etc/bash_completion.d/
+      register: bash_completion_d
+
+    - name: Download git-completion.bash
+      get_url:
+        url: https://raw.github.com/git/git/master/contrib/completion/git-completion.bash
+        dest: /etc/bash_completion.d/git-completion.bash
+        mode: 0644
+      when: bash_completion_d.stat.exists
+
+    - name: Add PS1 prompt
+      blockinfile:
+        path: "{{ git_ps1 }}"
+        marker: "# {mark} PS1 with git"
+        block: |
+          source {{ git_prompt }}
+          export GIT_PS1_SHOWDIRTYSTATE=1
+          export GIT_PS1_SHOWSTASHSTATE=1
+          export GIT_PS1_SHOWUNTRACKEDFILES=1
+          export GIT_PS1_SHOWUPSTREAM='auto'
+          export PS1='\[\033[01;32m\]\u@\h\[\033[01;34m\] \W\[\033[01;33m\]$(__git_ps1)\[\033[01;34m\] \$\[\033[00m\] '
+        create: yes

@@ -1,0 +1,27 @@
+---
+- name: Build httpd mgmt docker image
+  hosts: mgmt
+  become: true
+  vars:
+    docker_build_src: "{{ docker_build_src__web }}"
+    docker_build_image_name: "{{ docker_build_image_name__web }}"
+    docker_build_image_tag: "{{ ansible_date_time.iso8601_basic_short }}"
+
+  roles:
+    - role: ssl_self_signed_certificate
+      ssl_self_signed_cert_subj: "{{ ssl_self_signed_cert_subj__gitlab_external }}"
+      ssl_certificate: "{{ ssl_certificate__gitlab_external }}"
+      ssl_certificate_key: "{{ ssl_certificate_key__gitlab_external }}"
+      become: false
+      delegate_to: localhost
+      run_once: true
+
+    - role: ssl_self_signed_certificate
+      ssl_self_signed_cert_subj: "{{ ssl_self_signed_cert_subj__server_external }}"
+      ssl_certificate: "{{ ssl_certificate__server_external }}"
+      ssl_certificate_key: "{{ ssl_certificate_key__server_external }}"
+      become: false
+      delegate_to: localhost
+      run_once: true
+
+    - role: docker_build_image

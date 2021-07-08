@@ -1,0 +1,35 @@
+---
+- name: Install minio docker
+  hosts: mgmt
+  become: true
+  vars:
+    docker_compose_project_name: "{{ docker_compose_project_name__minio }}"
+    docker_compose_container_name: "{{ docker_compose_container_name__minio }}"
+    docker_compose_project_path: "{{ docker_compose_project_path__minio }}"
+
+  pre_tasks:
+    - name: Create gitlab shared folders on host
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+      loop:
+        - "{{ docker_compose_project_path }}"
+
+  roles:
+    - name: Start containers
+      role: docker_compose_run
+      docker_compose_file: "{{ ansible_project_root_path }}/files/mgmt/minio-compose.yml.j2"
+      docker_compose_pull: yes
+      environment:
+        MINIO_ACCESS_KEY: "{{ minio_access_key }}"
+        MINIO_SECRET_KEY: "{{ minio_secret_key }}"
+
+  post_tasks:
+    - name: Add a container to a network, leaving existing containers connected
+      docker_network:
+        name: "{{ docker_network_shared }}"
+        connected:
+          - "{{ docker_compose_container_name }}"
+        appends: yes

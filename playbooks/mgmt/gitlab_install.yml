@@ -1,0 +1,64 @@
+---
+- name: Install gitlab-ce docker
+  hosts: mgmt
+  become: true
+  vars:
+    docker_compose_project_name: "{{ docker_compose_project_name__gitlab }}"
+    docker_compose_container_name: "{{ docker_compose_container_name__gitlab }}"
+    docker_compose_project_path: "{{ docker_compose_project_path__gitlab }}"
+
+  pre_tasks:
+    - name: Create gitlab shared folders on host
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+      loop:
+        - "{{ docker_compose_project_path }}/config"
+        - "{{ docker_compose_project_path }}/data"
+        - "{{ docker_compose_project_path }}/logs"
+
+  roles:
+    - role: ssl_self_signed_certificate
+      ssl_self_signed_cert_subj: "{{ ssl_self_signed_cert_subj__gitlab_internal }}"
+      ssl_certificate: "{{ ssl_certificate__gitlab_internal }}"
+      ssl_certificate_key: "{{ ssl_certificate_key__gitlab_internal }}"
+
+    - name: Start containers
+      role: docker_compose_run
+      docker_compose_file: "{{ ansible_project_root_path }}/files/mgmt/gitlab_docker-compose.yml.j2"
+      docker_compose_pull: yes
+      environment:
+        GITLAB_OMNIBUS_INITIAL_ROOT_PASSWORD: "{{ gitlab_omnibus_initial_root_password }}"
+        GITLAB_OMNIBUS_LDAP_SERVERS_0_PASSWORD: "{{ gitlab_omnibus_ldap_servers_0_password }}"
+
+    - name: Set crontab for gitlab backup
+      role: crontab
+      cron_at_special_time:
+        - name: Gitlab {{ docker_compose_container_name }} backup
+          state: present
+          special_time: daily
+          user: root
+          job: >-
+            sh -c
+            "/bin/docker exec {{ docker_compose_container_name }} gitlab-backup create STRATEGY=copy CRON=1;
+            umask 0077;
+            cd {{ docker_compose_project_path }} &&
+            tar -zcf $(date "+{{ docker_compose_project_path }}/data/backups/\%s_{{ docker_compose_container_name }}_config_backup.tgz config");
+            find {{ docker_compose_project_path }}/data/backups -type f -name "*config_backup.tgz" -mtime +7 -exec rm -f {} \;"
+
+  post_tasks:
+    - name: Add a container to a network, leaving existing containers connected
+      docker_network:
+        name: "{{ docker_network_shared }}"
+        connected:
+          - "{{ docker_compose_container_name }}"
+        appends: yes
+
+    - name: Fix git ssh port if custom
+      block:
+        - command: docker exec -it {{ docker_compose_container_name }} sed -i -e 's/^Port 22/Port {{ docker_gitlab_port_ssh }}/' /etc/ssh/sshd_config
+        - command: docker exec -it {{ docker_compose_container_name }} sed -i -e 's/^Port 22/Port {{ docker_gitlab_port_ssh }}/' /assets/sshd_config
+        - command: docker exec -it {{ docker_compose_container_name }} /etc/init.d/ssh restart
+      when: docker_gitlab_port_ssh is defined

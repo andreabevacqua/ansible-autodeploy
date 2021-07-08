@@ -1,0 +1,58 @@
+---
+- name: Restore AWX backup
+  hosts: mgmt
+  become: true
+  vars:
+    awx_backup_db_file: /Users/sebi/_Lavoro_/mgmt/20191115_00.00.01_awx_db.dump
+    awx_backup_db_file_remote_src: false
+    awx_backup_db: awx_$(date +\%Y\%m\%d_\%H.\%M.\%S)
+    awx_remove_backup_db: false
+
+  tasks:
+    - name: Stop containers
+      command: docker stop {{ item }}
+      loop:
+        - awx_task
+        - awx_web
+        - awx_memcached
+
+    - name: Copy backup file on remote
+      copy:
+        src: "{{ awx_backup_db_file }}"
+        dest: /tmp/
+      when: not awx_backup_db_file_remote_src|bool
+
+    - name: Rename actual postgres db
+      command: docker exec awx_postgres psql postgres awx -c 'ALTER DATABASE "awx" RENAME TO "{{ awx_backup_db }}"'
+      ignore_errors: true
+
+    - name: Create restore script
+      copy:
+        content: docker exec -i awx_postgres pg_restore -U awx -C -d postgres < /tmp/{{ awx_backup_db_file|basename }}
+        dest: /tmp/awx_restore_backup_db.sh
+        mode: 0600
+
+    - name: Restore awx backup
+      shell: bash /tmp/awx_restore_backup_db.sh
+      register: restore_in_progress
+      async: 7200
+      poll: 0
+
+    - name: Wait for restore to complete
+      async_status:
+        jid: "{{ restore_in_progress.ansible_job_id }}"
+      register: docker_jobs
+      until: docker_jobs.finished
+      retries: 300
+      ignore_errors: true
+
+    - name: Start containers
+      command: docker start {{ item }}
+      loop:
+        - awx_memcached
+        - awx_web
+        - awx_task
+
+    - name: Remove backup db
+      command: docker exec -u postgres awx_postgres psql -c 'DROP DATABASE {{ awx_backup_db }}'
+      when: awx_remove_backup_db|bool

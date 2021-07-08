@@ -1,0 +1,13 @@
+version: '2'
+services:
+
+  httpd:
+    image: "{{ docker_build_image_name__web }}"
+    container_name: "{{ docker_compose_container_name__web }}"
+    hostname: "{{ docker_compose_container_name__web }}"
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/lib/awx/projects/_28__ansible_gev/files/reports:/usr/local/apache2/htdocs/mgmt/reports/data

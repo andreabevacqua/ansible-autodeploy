@@ -1,0 +1,33 @@
+---
+# tasks file for roles/docker_compose_run
+- name: Create docker compose project path on host
+  file:
+    path: "{{ docker_compose_project_path }}"
+    state: directory
+    owner: root
+    group: root
+
+- name: Set docker-compose file extension
+  set_fact:
+    docker_compose_file_ext: "{{ docker_compose_file.split('.')|last }}"
+
+- name: Copy docker-compose yml
+  copy:
+    src: "{{ docker_compose_file }}"
+    dest: "{{ docker_compose_project_path }}/docker-compose.yml"
+  register: docker_compose_file_yml
+  when: docker_compose_file_ext != 'j2'
+
+- name: Copy docker-compose j2
+  template:
+    src: "{{ docker_compose_file }}"
+    dest: "{{ docker_compose_project_path }}/docker-compose.yml"
+  register: docker_compose_file_j2
+  when: docker_compose_file_ext == 'j2'
+
+- name: Start the containers {{ docker_compose_project_name }}
+  docker_compose:
+    project_name: "{{ docker_compose_project_name }}"
+    project_src: "{{ docker_compose_project_path }}"
+    restarted: "{{ docker_compose_file_yml is changed or docker_compose_file_j2 is changed }}"
+    pull: "{{ docker_compose_pull }}"

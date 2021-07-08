@@ -1,0 +1,24 @@
+# - name: Check dependencies {{docker_build_image_name}}
+#   import_tasks: check-dependencies.yml
+
+- name: Build Image {{docker_build_image_name}}
+  import_tasks: image-build.yml
+  tags: b
+
+- meta: end_play
+
+- name: Push Image {{docker_build_image_name}}
+  import_tasks: image-push.yml
+  tags: p
+
+- name: Transfer Image {{docker_build_image_name}} with {{docker_build_image_tag}}
+  include_tasks: image-transfer.yml
+  when: build_and_push_new_image_tag == false
+  tags: t
+
+- name: Transfer Image {{docker_build_image_name}}:{{docker_build_image_tag}}
+  include_tasks: image-transfer.yml
+  vars:
+    docker_build_image_tag: "{{build_and_push_new_image_tag}}"
+  when: build_and_push_new_image_tag != false
+  tags: tn

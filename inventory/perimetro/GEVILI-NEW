@@ -1,0 +1,5 @@
+[CAT-NEW-GEVILI]
+RC-GVL-AS01 ansible_host=172.19.113.192
+RC-GVL-AS02 ansible_host=172.19.113.193
+RC-GVL-SVC01 ansible_host=172.19.113.194
+RC-GVL-DB01 ansible_host=172.19.113.195

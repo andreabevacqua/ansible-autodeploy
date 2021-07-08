@@ -1,0 +1,6 @@
+---
+# defaults file for ssl_self_signed_certificate
+ssl_self_signed_cert_subj: "/C=IT/ST=RM/L=Rome/O=MGMT/OU=MGMT/CN=gitlab.test.local"
+ssl_certificate: "/path/to/server.crt"
+ssl_certificate_key: "/path/to/server.key"
+ssl_certificate_expire_days: 3650

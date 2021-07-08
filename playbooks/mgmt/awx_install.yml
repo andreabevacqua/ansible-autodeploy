@@ -1,0 +1,155 @@
+---
+- name: Install AWX docker
+  hosts: mgmt
+  become: true
+  vars:
+    awx_installer_url: https://github.com/ansible/awx/tree/{{ dockerhub_version }}/installer
+    awx_installer_path: "{{ ansible_project_root_path }}/files/mgmt/awx_{{ dockerhub_version }}/installer"
+    docker_compose_project_name: "{{ docker_compose_project_name__awx }}"
+    docker_compose_containers_to_network:
+      - awx_web
+      - awx_task
+    docker_awx_pip: /var/lib/awx/venv/awx/bin/pip
+
+  tasks:
+    - name: Configure awx installer
+      block:
+        - name: Create awx folder
+          file:
+            path: "{{ awx_installer_path.split('/')[0:-1]|join('/') }}"
+            state: directory
+
+        - name: Download awx installer folder
+          script: "{{ ansible_project_root_path }}/files/scripts/wgetgitdir.py {{ awx_installer_url }}"
+          args:
+            creates: "{{ awx_installer_path }}"
+            chdir: "{{ awx_installer_path.split('/')[0:-1]|join('/') }}"
+
+        # Transform playbook install.yml in task file
+        - lineinfile:
+            path: "{{ awx_installer_path }}/install.yml"
+            regexp: '- name: '
+            state: absent
+            backup: yes
+        - lineinfile:
+            path: "{{ awx_installer_path }}/install.yml"
+            regexp: 'hosts: all'
+            state: absent
+        - replace:
+            path: "{{ awx_installer_path }}/install.yml"
+            regexp: '.*roles:'
+            replace: "- include_role: \n    name: '{{ '{{' }} item {{ '}}' }}' \n  loop:"
+        - replace:
+            path: "{{ awx_installer_path }}/install.yml"
+            regexp: 'role: (\w+)'
+            replace: "role: '{{ '{{' }} awx_installer_path {{ '}}' }}/roles/\\1'"
+
+        # Modify docker-compose.yml
+        - lineinfile:
+            path: "{{ awx_installer_path }}/roles/local_docker/templates/docker-compose.yml.j2"
+            regexp: ".*:8052"
+            state: absent
+            backup: yes
+        - replace:
+            path: "{{ awx_installer_path }}/roles/local_docker/templates/docker-compose.yml.j2"
+            regexp: ".*\n.*host_port_ssl.*\n.*"
+            replace: ''
+        - lineinfile:
+            path: "{{ awx_installer_path }}/roles/local_docker/templates/docker-compose.yml.j2"
+            regexp: "ports:"
+            state: absent
+        - lineinfile:
+            path: "{{ awx_installer_path }}/roles/local_docker/templates/docker-compose.yml.j2"
+            line: "      - '{{ '{{' }} rilasci_data_dir + ':/mnt/rilasci:rw' {{ '}}' }}'"
+            insertbefore: 'SECRET_KEY'
+
+        # Modify files/mgmt/awx/installer/roles/local_docker/tasks/compose.yml
+        - lineinfile:
+            path: "{{ awx_installer_path }}/roles/local_docker/tasks/compose.yml"
+            line: "        pull: yes"
+            insertafter: 'docker_compose'
+
+        # Modify files/mgmt/awx/installer/roles/local_docker/tasks/main.yml (bug lookup version >= 8.0.0)
+        - block:
+          - blockinfile:
+              path: "{{ awx_installer_path }}/roles/local_docker/tasks/main.yml"
+              marker: "# {mark} Slurp file"
+              block: |
+                  - name: Slurp file
+                    slurp:
+                      src: "{{ postgres_data_dir }}/pgdata/PG_VERSION"
+                    register: slurpfile
+                    when: pg_version_file.stat.exists
+              insertbefore: '- name: Record Postgres version'
+          - lineinfile:
+              path: "{{ awx_installer_path }}/roles/local_docker/tasks/main.yml"
+              regexp: 'old_pg_version:.*'
+              line: "    old_pg_version: \"{{ '{{' }} slurpfile['content'] | b64decode | trim {{ '}}' }}\""
+          - replace:
+              path: "{{ awx_installer_path }}/roles/local_docker/tasks/main.yml"
+              regexp: '(- name: Copy old pg_hba.conf\n\s+copy:)(\n\s+src:)'
+              replace: '\1\n    remote_src: true\2'
+          when: dockerhub_version.split('.')[0]|int > 7
+
+      delegate_to: localhost
+      run_once: true
+      become: false
+
+    # - meta: end_play
+
+    - name: Run awx installer
+      include_tasks: "{{ awx_installer_path }}/install.yml"
+
+    - name: Add Trusted certificates to awx_task
+      block:
+        - command: docker exec awx_task update-ca-trust force-enable
+        - command: docker exec awx_task bash -c "printf "%s\n" '{{ item }}' > /etc/pki/ca-trust/source/anchors/gitlab.pem"
+          with_file: "{{ ssl_certificate__gitlab_external }}"
+        - command: docker exec awx_task update-ca-trust extract
+
+    - name: Install pyvmomi (vsphere)
+      command: docker exec awx_task pip install pyvmomi --proxy {{ http_proxy }}
+      ignore_errors: true
+
+    - name: Install pyvmomi (vsphere)
+      command: docker exec awx_task pip3 install pyvmomi --proxy {{ http_proxy }}
+      ignore_errors: true
+
+    - name: Install ansible-cmdb
+      command: docker exec awx_task pip3 install ansible-cmdb --proxy {{ http_proxy }}
+      ignore_errors: true
+
+    - name: Install python-ldap
+      command: docker exec awx_task yum install --repo AppStream -y python3-ldap
+      ignore_errors: true
+
+    - name: Add vault file in awx HOME (referenced in ansible.cfg)
+      command: docker exec awx_task bash -c "echo '{{ ansible_vault_pass }}' > /var/lib/awx/.vault_pass"
+
+    - name: Add a container to a network, leaving existing containers connected
+      docker_network:
+        name: "{{ docker_network_shared }}"
+        connected: "{{ item }}"
+        appends: yes
+      loop: "{{ docker_compose_containers_to_network }}"
+
+    - name: Create backup folder
+      file:
+        path: "{{ awx_backup_dir }}"
+        state: directory
+
+    - name: Schedule awx backup
+      import_role:
+        name: crontab
+      vars:
+        cron_at_special_time:
+          - name: AWX awx_postgres backup
+            state: present
+            special_time: daily
+            user: root
+            job: >-
+              sh -c
+              "/bin/docker exec -u postgres awx_postgres pg_dump -U awx -Fc awx >
+              {{ awx_backup_dir }}/$(date +\%Y\%m\%d_\%H.\%M.\%S)_awx_db.dump;
+              find {{ awx_backup_dir }} -type f -name "*_awx_db.dump" -mtime +1 -exec gzip -9 {} \;;
+              find {{ awx_backup_dir }} -type f -name "*_awx_db.dump.gz" -mtime +7 -exec rm -f {} \;"

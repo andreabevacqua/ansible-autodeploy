@@ -1,0 +1,62 @@
+---
+- name: Check if Image exists {{docker_build_image_name}}
+  docker_image_info:
+    name: "{{ docker_build_image_name }}:{{ docker_build_image_tag }}"
+  register: image_exists
+
+- name: Build image {{ docker_build_image_name }}:{{ docker_build_image_tag }}
+  block:
+    - name: Create temporary build directory
+      tempfile:
+        state: directory
+        suffix: docker_build
+      register: docker_build_temp_dir
+
+    - name: Copy source folder
+      copy:
+        src: "{{ docker_build_src }}"
+        dest: "{{ docker_build_temp_dir.path }}"
+
+    - name: Set build path
+      set_fact:
+        docker_build_path: "{{ docker_build_temp_dir.path }}/{{ docker_build_src.split('/')[-1] }}"
+
+    - name: Build the image {{docker_build_image_name}}
+      docker_image:
+        name: "{{ docker_build_image_name }}"
+        tag: "{{ docker_build_image_tag }}"
+        build:
+          path: "{{ docker_build_path }}"
+          pull: "{{ docker_build_pull }}"
+          rm: "{{ docker_build_rm }}"
+          args: "{{ docker_build_args }}"
+        source: build
+      register: docker_image_created
+
+    - name: Remove last image created if is already present and tagged latest
+      docker_image:
+        state: absent
+        name: "{{ docker_build_image_name }}"
+        tag: "{{ docker_build_image_tag }}"
+        force_absent: yes
+      register: docker_image_removed
+      when:
+        - docker_image_created.image.RepoTags|length > 1
+        - (docker_build_image_name + ':latest') in docker_image_created.image.RepoTags
+
+    - name: Tag image {{docker_build_image_name}}:docker_build_image_tag as latest
+      docker_image:
+        name: "{{ docker_build_image_name }}:{{ docker_build_image_tag }}"
+        repository: "{{ docker_build_image_name }}:latest"
+        force_tag: yes
+        source: local
+      when:
+        - docker_build_image_retag_latest
+        - not docker_image_removed.changed
+
+    - name: Remove temporary build directory
+      file:
+        path: "{{ docker_build_temp_dir.path }}"
+        state: absent
+
+  when: image_exists.images|length == 0

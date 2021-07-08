@@ -1,0 +1,6 @@
+---
+# defaults file for roles/docker_compose_run
+docker_compose_project_name: myimage
+docker_compose_pull: no
+docker_compose_file: "{{ ansible_project_root_path }}/files/mgmt/my_docker-compose.yml"
+docker_compose_project_path: /var/lib/{{ docker_compose_project_name }}

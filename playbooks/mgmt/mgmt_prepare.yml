@@ -1,0 +1,30 @@
+---
+- name: Prepare server prerequisites
+  hosts: mgmt
+  become: true
+  tasks:
+    # - name: Add smb cred file
+    #   copy:
+    #     content: |
+    #       username={{ mgmt_smb_cred_username }}
+    #       password={{ mgmt_smb_cred_password }}
+    #       domain=mgmt.inf
+    #     dest: /root/creds_smb_rilasci
+    #     owner: root
+    #     group: root
+    #     mode: 0600
+
+    # - name: Mount smb rilasci
+    #   mount:
+    #     path: /mnt/rilasci
+    #     src: //172.16.179.6/rilasci
+    #     fstype: cifs
+    #     state: mounted
+    #     opts: _netdev,credentials=/root/creds_smb_rilasci
+
+    - name: create ansible user and generate key pairs
+      ansible.builtin.user:
+        name: ansible_gev
+        generate_ssh_key: yes
+        ssh_key_bits: 2048
+        ssh_key_file: .ssh/id_rsa

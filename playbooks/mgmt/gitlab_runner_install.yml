@@ -1,0 +1,63 @@
+---
+- name: Install gitlab-ce runner docker
+  hosts: mgmt
+  become: true
+  vars:
+    docker_gitlab_name: "{{ docker_compose_container_name__gitlab }}"
+    docker_gitlab_runner_server_url: https://{{ docker_compose_container_name__gitlab }}
+    docker_gitlab_runner_volumes__custom:
+      - "{{ ssl_certificate__gitlab_internal }}:/etc/gitlab-runner/certs/gitlab.crt"
+    docker_gitlab_runner_networks:
+      - name: "{{ docker_network_shared }}"
+    docker_gitlab_runner_reg_exec_opts__custom:
+      tls-ca-file: /etc/gitlab-runner/certs/gitlab.crt
+      locked: "false"
+      run-untagged: "true"
+      access-level: "not_protected"
+      tag-list: "docker,pages"
+      docker-network-mode: mgmt_network
+      docker-extra-hosts: "gitlab.gev.local:172.26.252.229"
+      pre-clone-script: |
+        git config --global http.proxy {{ http_proxy }}
+        git config --global remote.gitlab.gev.local.proxy ""
+        git config --global http.sslVerify false
+        export http_proxy={{ http_proxy }}
+        export https_proxy={{ http_proxy }}
+        export no_proxy=gitlab.gev.local
+        export HTTP_PROXY={{ http_proxy }}
+        export HTTPS_PROXY={{ http_proxy }}
+        export NO_PROXY=gitlab.gev.local
+      pre-build-script: |
+        export http_proxy={{ http_proxy }}
+        export https_proxy={{ http_proxy }}
+        export no_proxy=gitlab.gev.local
+        export HTTP_PROXY={{ http_proxy }}
+        export HTTPS_PROXY={{ http_proxy }}
+        export NO_PROXY=gitlab.gev.local
+      env: ["export https_proxy={{ http_proxy }}", "export http_proxy={{ http_proxy }}", "export no_proxy=gitlab.gev.local", "export HTTPS_PROXY={{ http_proxy }}", "export HTTP_PROXY={{ http_proxy }}"]
+      cache-type: "s3"
+      cache-s3-server-address: minio:9000
+      cache-s3-access-key: "{{ minio_access_key }}"
+      cache-s3-secret-key: "{{ minio_secret_key }}"
+      cache-s3-bucket-name: runner
+      cache-s3-insecure: true
+    docker_gitlab_runner_reg_force: yes
+
+  pre_tasks:
+    - name: Get gitlab runner registration token
+      command: docker exec {{ docker_gitlab_name }} gitlab-rails runner -e production "puts Gitlab::CurrentSettings.current_application_settings.runners_registration_token"
+      register: docker_gitlab_runner_reg_token_register
+
+    - set_fact:
+        docker_gitlab_runner_reg_token: "{{ docker_gitlab_runner_reg_token_register.stdout }}"
+
+    - name: Create runner cache minio directory
+      file:
+        path: "{{ docker_compose_project_path__minio }}/export/runner"
+        state: directory
+      become: true
+
+  roles:
+    - name: Install gitlab-runner docker
+      role: jtyr.docker_gitlab_runner
+      docker_gitlab_runner_name: gitlab-runner_mgmt_01

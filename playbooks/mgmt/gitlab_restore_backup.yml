@@ -1,0 +1,51 @@
+---
+- name: Restore gitlab backup
+  hosts: mgmt
+  become: true
+  vars:
+    gitlab_backup_file: /Users/sebi/_Lavoro_/mgmt/1573772446_2019_11_14_12.4.2_gitlab_backup.tar
+    gitlab_backup_config_file: /Users/sebi/_Lavoro_/mgmt/1573772401_gitlab_mgmt_web_config_backup.tgz
+    gitlab_backup_file_not_remote_src: true
+    gitlab_backup_timestamp: "{{ gitlab_backup_file | basename | regex_replace('_gitlab_backup\\.tar', '') }}"
+
+  tasks:
+    - name: Check if container is healthy
+      command: docker inspect --format='{{ '{{' }}.State.Health.Status{{ '}}' }}' {{ docker_compose_container_name__gitlab }}
+      register: cmd_res
+      retries: 300
+      until: cmd_res.stdout is search('healthy')
+
+    - name: Copy backup file on remote
+      copy:
+        src: "{{ item }}"
+        dest: "{{ docker_compose_project_path__gitlab }}/data/backups"
+      loop:
+        - "{{ gitlab_backup_file }}"
+        - "{{ gitlab_backup_config_file }}"
+      when: gitlab_backup_file_not_remote_src|bool
+
+    - name: Restore configurations
+      unarchive:
+        src: "{{ docker_compose_project_path__gitlab }}/data/backups/{{ gitlab_backup_config_file | basename }}"
+        dest: "{{ docker_compose_project_path__gitlab }}"
+        remote_src: "{{ gitlab_backup_file_not_remote_src }}"
+
+    - name: Create restore script
+      copy:
+        content: docker exec -i {{ docker_compose_container_name__gitlab }} gitlab-backup restore BACKUP={{ gitlab_backup_timestamp }} force=yes
+        dest: /tmp/gitlab_restore_backup.sh
+        mode: 0600
+
+    - name: Restore backup
+      shell: bash /tmp/gitlab_restore_backup.sh
+      register: restore_in_progress
+      async: 7200
+      poll: 0
+
+    - name: Wait for restore to complete
+      async_status:
+        jid: "{{ restore_in_progress.ansible_job_id }}"
+      register: docker_jobs
+      until: docker_jobs.finished
+      retries: 300
+      ignore_errors: true

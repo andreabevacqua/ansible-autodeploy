@@ -1,0 +1,3 @@
+---
+# vars file for sgi_gtech_ship_files
+nfs_share_source_files_root: /mnt/rilasci

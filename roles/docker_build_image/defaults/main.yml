@@ -1,0 +1,19 @@
+---
+docker_build_image_name: imagename
+docker_build_image_tag: 0.0.0
+docker_build_src: directory_dockerfile_source
+docker_build_pull: yes
+docker_build_rm: yes
+docker_build_args: {}
+docker_build_image_retag_latest: True
+
+# build_and_push_image_build: true
+# build_and_push_docker_file_path: ./files/docker/imagename
+# build_and_push_debug: false
+# build_and_push_pull: true
+# build_and_push_push: true
+# build_and_push_tag_latest: true
+# build_and_push_tag_versions: true
+# build_and_push_transfer: false
+# build_and_push_transfer_tmp_image_dir: /tmp/docker/images
+# build_and_push_new_image_tag: false

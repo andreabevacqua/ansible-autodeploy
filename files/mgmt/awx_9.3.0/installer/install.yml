@@ -1,0 +1,9 @@
+---
+- include_role: 
+    name: '{{ item }}' 
+  loop:
+    - {role: '{{ awx_installer_path }}/roles/check_vars'}
+    - {role: '{{ awx_installer_path }}/roles/image_build', when: "dockerhub_base is not defined"}
+    - {role: '{{ awx_installer_path }}/roles/image_push', when: "docker_registry is defined and dockerhub_base is not defined"}
+    - {role: '{{ awx_installer_path }}/roles/kubernetes', when: "openshift_host is defined or kubernetes_context is defined"}
+    - {role: '{{ awx_installer_path }}/roles/local_docker', when: "openshift_host is not defined and kubernetes_context is not defined"}

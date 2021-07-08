@@ -1,0 +1,102 @@
+---
+- name: Update gitlab-ce docker
+  hosts: mgmt
+  become: true
+  vars:
+    gitlab_docker_image: gitlab/gitlab-ce
+    gitlab_docker_container: gitlab
+    gitlab_host_folder: /opt/gitlab
+    gitlab_backup_sufix: backup
+    gitlab_backup_to_keep: 2
+  tasks:
+    - name: Get 'IMAGE ID' of the current image
+      shell: docker images | grep '{{ gitlab_docker_image }}' | head -1 | awk '{print $3}'
+      register: gitlab_docker_current_image_id
+      changed_when: false
+
+    - name: Update image
+      docker_image:
+        name: "{{ gitlab_docker_image }}:latest"
+        source: pull
+        force_source: yes
+      register: gitlab_docker_image_update
+
+    - name: Action if update image
+      block:
+        - name: Stop and remove docker container
+          docker_container:
+            name: "{{ gitlab_docker_container }}"
+            state: absent
+            keep_volumes: yes
+
+        - name: Backup gitlab folder
+          command: >
+            tar zcf
+              {{ gitlab_host_folder }}_{{ gitlab_backup_sufix }}_{{ gitlab_docker_current_image_id.stdout }}_{{ ansible_date_time.iso8601_basic_short }}.tgz
+              {{ gitlab_host_folder.split('/')[-1] }}
+          args:
+            chdir: "{{ gitlab_host_folder.split('/')[0:-1] | join('/') }}"
+          register: backup_in_progress
+          ignore_errors: true
+          async: 7200
+          poll: 0
+
+        - name: Wait for backup to complete
+          async_status:
+            jid: "{{ backup_in_progress.ansible_job_id }}"
+          register: docker_jobs
+          until: docker_jobs.finished
+          retries: 300
+          ignore_errors: true
+
+        - name: Start docker container with the updated image
+          docker_container:
+            name: "{{ gitlab_docker_container }}"
+            image: "{{ gitlab_docker_image }}"
+            state: started
+            restart_policy: always
+            detach: yes
+            published_ports:
+              - "10122:22"
+            volumes:
+              - "{{ gitlab_host_folder }}/config:/etc/gitlab"
+              - "{{ gitlab_host_folder }}/logs:/var/log/gitlab"
+              - "{{ gitlab_host_folder }}/data:/var/opt/gitlab"
+            networks:
+              - name: awx_default
+                links:
+                  - "awx_web:awx_web"
+
+        - name: Get docker images
+          shell: >
+            docker images |
+            grep '{{ gitlab_docker_image }}' |
+            awk '{print $3}'
+          register: gitlab_docker_images_output
+          changed_when: false
+
+        - name: Set images to remove
+          set_fact:
+            gitlab_docker_images_to_remove: "{{ gitlab_docker_images_output.stdout_lines[gitlab_backup_to_keep:] }}"
+
+        - name: Remove older images
+          command: docker rmi {{ item }}
+          loop: "{{ gitlab_docker_images_to_remove }}"
+          when: gitlab_docker_images_to_remove|length > 0
+
+        - name: Get backup files
+          shell: >
+            ls -1rt {{ gitlab_host_folder }}_{{ gitlab_backup_sufix }}_*
+          register: gitlab_backup_files_output
+
+        - name: Set backup files to remove
+          set_fact:
+            gitlab_backup_files_to_remove: "{{ gitlab_backup_files_output.stdout_lines[:-gitlab_backup_to_keep] }}"
+
+        - name: Remove older backup files
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop: "{{ gitlab_backup_files_to_remove }}"
+
+      when: gitlab_docker_image_update.changed

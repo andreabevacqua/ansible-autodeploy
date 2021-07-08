@@ -1,0 +1,78 @@
+---
+http_proxy: 10.75.148.16:3128
+#https_proxy: 10.75.148.16:3128
+http_no_proxy: 127.0.0.1,localhost
+
+# http_proxy: ''
+# http_no_proxy: ''
+
+# docker_install
+docker_sdk: true
+docker_compose: true
+docker_daemon_envs:
+  HTTP_PROXY: "{{ http_proxy }}"
+  HTTPS_PROXY: "{{ http_proxy }}"
+  NO_PROXY: "{{ http_no_proxy }}"
+# docker_daemon_config:
+#   bip: 10.10.0.1/24
+#   default-address-pools:
+#     - base: 10.11.0.0/16
+#       size: 24
+
+docker_network_shared: mgmt_network
+
+# awx_install
+docker_compose_project_name__awx: awx
+docker_compose_project_path__awx: /var/lib/{{ docker_compose_project_name__awx }}
+awx_backup_dir: "{{ docker_compose_project_path__awx }}/backups"
+
+# webserver install
+docker_compose_project_name__web: httpd_mgmt
+docker_compose_container_name__web: httpd_mgmt_web
+docker_compose_project_path__web: /var/lib/{{ docker_compose_project_name__web }}
+
+docker_build_image_name__web: httpd_mgmt_web
+docker_build_src__web: "{{ ansible_project_root_path }}/files/mgmt/{{ docker_build_image_name__web }}"
+
+ssl_self_signed_cert_subj__gitlab_external: "/C=IT/ST=RM/L=Rome/O=MGMT/OU=MGMT/CN=gitlab.gev.local"
+ssl_certificate__gitlab_external: "{{ docker_build_src__web }}/gitlab.crt"
+ssl_certificate_key__gitlab_external: "{{ docker_build_src__web }}/gitlab.key"
+
+ssl_self_signed_cert_subj__server_external: "/C=IT/ST=RM/L=Rome/O=MGMT/OU=MGMT/CN=172.26.252.229"
+ssl_certificate__server_external: "{{ docker_build_src__web }}/server.crt"
+ssl_certificate_key__server_external: "{{ docker_build_src__web }}/server.key"
+
+# gitlab install
+# docker_gitlab_ce_tag: 12.4.2-ce.0
+docker_gitlab_ce_tag: latest
+
+docker_compose_project_name__gitlab: gitlab_mgmt
+docker_compose_container_name__gitlab: gitlab_mgmt_web
+docker_compose_project_path__gitlab: /var/lib/{{ docker_compose_project_name__gitlab }}
+
+docker_gitlab_port_ssh: 10122
+
+ssl_self_signed_cert_subj__gitlab_internal: "/C=IT/ST=RM/L=Rome/O=MGMT/OU=MGMT/CN=gitlab_mgmt_web"
+ssl_certificate__gitlab_internal: "{{ docker_compose_project_path__gitlab }}/gitlab.crt"
+ssl_certificate_key__gitlab_internal: "{{ docker_compose_project_path__gitlab }}/gitlab.key"
+
+gitlab_pages_external_url: https://igt.local
+
+# minio install
+docker_compose_project_name__minio: minio
+docker_compose_container_name__minio: minio
+docker_compose_project_path__minio: /var/lib/{{ docker_compose_project_name__minio }}
+
+ansible_project_root_path: "{{ '/var/lib/awx/projects/_28__ansible_gev' if tower_job_id is defined else (inventory_file|dirname|dirname) }}"
+
+gitlab_omnibus_initial_root_password: cRRM599KfvrEXX
+gitlab_omnibus_ldap_servers_0_password: CwfuKax5esr3eW
+minio_access_key: DCPTcjEFm2cQUK
+minio_secret_key: PE5999ZM4dcHWC
+awx_installer_vars_pg_password: d6xUaBBbEB3z3M
+awx_installer_vars_pg_admin_password: WPA4JakCTf8rWL
+awx_installer_vars_rabbitmq_password: 44btRsEHaxuRdd
+awx_installer_vars_admin_user: admin
+awx_installer_vars_admin_password: ja5kfLk7YwSk9q
+awx_installer_vars_secret_key: 5kKEUhcLrmM7cN
+ansible_vault_pass: password

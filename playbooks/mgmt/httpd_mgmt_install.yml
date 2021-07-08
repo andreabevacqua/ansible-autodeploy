@@ -1,0 +1,22 @@
+---
+- name: Install httpd mgmt
+  hosts: mgmt
+  become: true
+  vars:
+    docker_compose_project_name: "{{ docker_compose_project_name__web }}"
+    docker_compose_container_name: "{{ docker_compose_container_name__web }}"
+    docker_compose_project_path: "{{ docker_compose_project_path__web }}"
+
+  roles:
+    - name: Start containers
+      role: docker_compose_run
+      docker_compose_file: "{{ ansible_project_root_path }}/files/mgmt/httpd-mgmt_docker-compose.yml.j2"
+      docker_compose_pull: no
+
+  post_tasks:
+    - name: Add a container to a network, leaving existing containers connected
+      docker_network:
+        name: "{{ docker_network_shared }}"
+        connected:
+          - "{{ docker_compose_container_name }}"
+        appends: yes

@@ -1,0 +1,26 @@
+---
+- name: Install docker
+  hosts: mgmt
+  become: true
+
+  pre_tasks:
+    - name: Requirements for "Failed building wheel for subprocess32"
+      yum:
+        name:
+          - python-devel
+          - gcc
+        state: installed
+
+  roles:
+    - role: haxorof.docker_ce
+
+  post_tasks:
+    - name: Create a network for mgmt containers
+      docker_network:
+        name: "{{ docker_network_shared }}"
+
+    - name: Remove extra packages
+      yum:
+        name:
+          - gcc
+        state: absent

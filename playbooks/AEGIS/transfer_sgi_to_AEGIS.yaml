@@ -1,0 +1,6 @@
+- hosts: DEV
+  vars: 
+    game_files_path: "GV 3028 CUCCIOLI D'ORO"
+    ship_number: "SHIP 2"
+  roles:
+    - sgi_gtech_ship_files

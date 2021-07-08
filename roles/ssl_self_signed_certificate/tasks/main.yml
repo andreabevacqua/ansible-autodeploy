@@ -1,0 +1,26 @@
+---
+# tasks file for ssl_self_signed_certificate
+- name: Crt folder exists
+  file:
+    path: "{{ ssl_certificate | dirname }}"
+    state: directory
+
+- name: Key folder exists
+  file:
+    path: "{{ ssl_certificate_key | dirname }}"
+    state: directory
+
+- name: Create self-signed certificate
+  command: >
+    openssl req -new -nodes -x509
+      -subj "{{ ssl_self_signed_cert_subj }}"
+      -days "{{ ssl_certificate_expire_days }}"
+      -keyout {{ ssl_certificate_key }}
+      -out {{ ssl_certificate }}
+      -extensions v3_ca
+    creates={{ ssl_certificate }}
+
+- name: Adjust ssl key permissions
+  file:
+    path: "{{ ssl_certificate_key }}"
+    mode: 0600

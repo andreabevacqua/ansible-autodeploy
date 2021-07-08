@@ -1,0 +1,12 @@
+---
+# tasks file for crontab
+- name: Cron at special time
+  cron:
+    state: '{{ item.state }}'
+    special_time: '{{ item.special_time }}'
+    name: '{{ item.name }}'
+    user: '{{ item.user }}'
+    job: '{{ item.job }}'
+  loop: '{{ cron_at_special_time }}'
+  become: True
+  tags: cron_at_special_time

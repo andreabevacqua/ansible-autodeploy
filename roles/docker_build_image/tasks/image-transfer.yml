@@ -1,0 +1,78 @@
+---
+- name: Ensure tmp directory exists {{docker_build_image_name}}
+  run_once: yes
+  file:
+    state: directory
+    path: "{{ role_path }}/tmp/"
+  delegate_to: localhost
+  when:
+  - build_and_push_transfer == true
+
+- name: Archive List Exchange Service {{docker_build_image_name}}:{{docker_build_image_tag}}
+  run_once: yes
+  shell:
+    _raw_params: "docker save {{ docker_build_image_name }}:{{ docker_build_image_tag }} -o '{{ role_path }}/tmp/image.tar'"
+  delegate_to: localhost
+  when:
+    - build_and_push_transfer == true
+
+- name: Ensure Exchange Directory Common {{docker_build_image_name}}
+  file:
+    state: directory
+    path: "{{ build_and_push_transfer_tmp_image_dir }}"
+  when:
+    - build_and_push_transfer == true
+
+- name: Copy Image to Server {{docker_build_image_name}}
+  copy:
+    src: "{{ role_path }}/tmp/image.tar"
+    dest: "{{ build_and_push_transfer_tmp_image_dir }}/image.tar"
+  when:
+    - build_and_push_transfer == true
+
+- name: Load Docker Image {{ docker_build_image_name }}
+  shell: "cat {{ build_and_push_transfer_tmp_image_dir }}/image.tar | docker load"
+  when:
+  - build_and_push_transfer == true
+
+- name: Remove temporary Image file from remote host {{docker_build_image_name}}
+  file:
+    state: absent
+    path: "{{ build_and_push_transfer_tmp_image_dir }}/image.tar"
+  when:
+  - build_and_push_transfer == true
+
+- name: Remove temporary Image file from localhost {{docker_build_image_name}}
+  run_once: yes
+  file:
+    state: absent
+    path: "{{ role_path }}/tmp/image.tar"
+  delegate_to: localhost
+  when:
+  - build_and_push_transfer == true
+
+- name: Remove tmp directory {{docker_build_image_name}}
+  run_once: yes
+  file:
+    state: absent
+    path: "{{ role_path }}/tmp/"
+  delegate_to: localhost
+  when:
+  - build_and_push_transfer == true
+
+- name: Tag latest {{docker_build_image_name}}
+  shell:
+    _raw_params: "docker tag {{ docker_build_image_name }}:{{ docker_build_image_tag }} {{ docker_build_image_name }}:{{ item }}"
+  with_items:
+  - "latest"
+  when:
+  - build_and_push_transfer == true and build_and_push_tag_latest == true
+
+- name: Tag with Version {{docker_build_image_name}}
+  shell:
+    _raw_params: "docker tag {{ docker_build_image_name }}:{{ docker_build_image_tag }} {{ docker_build_image_name }}:{{ item }}"
+  with_items:
+  - "{{ docker_build_image_tag.split('.')[0] }}.{{ docker_build_image_tag.split('.')[1] }}"
+  - "{{ docker_build_image_tag.split('.')[0] }}"
+  when: build_and_push_transfer == true and build_and_push_tag_versions == true and
+        docker_build_image_tag.split('.')|length > 1
