@@ -1,2 +1,0 @@
-[mgmt] 
-#RP-MNGTL-GV-AS1 ansible_host=172.19.146.147 ansible_user=administrator

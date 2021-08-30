@@ -1,4 +1,0 @@
-[MONGEV]
-RP-GEVMON-1 ansible_host=172.19.146.145
-RP-GEVMON-2 ansible_host=172.19.146.146
-RP-GEVMON-3 ansible_host=172.19.146.148
