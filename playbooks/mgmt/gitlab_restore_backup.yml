@@ -3,8 +3,8 @@
   hosts: mgmt
   become: true
   vars:
-    gitlab_backup_file: /Users/sebi/_Lavoro_/mgmt/1573772446_2019_11_14_12.4.2_gitlab_backup.tar
-    gitlab_backup_config_file: /Users/sebi/_Lavoro_/mgmt/1573772401_gitlab_mgmt_web_config_backup.tgz
+    gitlab_backup_file: /Users/andrea/_Lavoro_/mgmt/1573772446_2019_11_14_12.4.2_gitlab_backup.tar
+    gitlab_backup_config_file: /Users/andrea/_Lavoro_/mgmt/1573772401_gitlab_mgmt_web_config_backup.tgz
     gitlab_backup_file_not_remote_src: true
     gitlab_backup_timestamp: "{{ gitlab_backup_file | basename | regex_replace('_gitlab_backup\\.tar', '') }}"
 

@@ -1,5 +1,5 @@
 FROM httpd
-LABEL maintainer="Eusebiu Cristea <e.cristea@almaviva.it>"
+LABEL maintainer="Andrea Bevacqua"
 COPY landing-page htdocs/mgmt
 COPY derekeder.csv-to-html-table htdocs/mgmt/reports
 RUN  rm -f htdocs/mgmt/reports/index.html

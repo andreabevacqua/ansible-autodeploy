@@ -3,7 +3,7 @@
   hosts: mgmt
   become: true
   vars:
-    awx_backup_db_file: /Users/sebi/_Lavoro_/mgmt/20191115_00.00.01_awx_db.dump
+    awx_backup_db_file: /Users/andrea/_Lavoro_/mgmt/20191115_00.00.01_awx_db.dump
     awx_backup_db_file_remote_src: false
     awx_backup_db: awx_$(date +\%Y\%m\%d_\%H.\%M.\%S)
     awx_remove_backup_db: false
